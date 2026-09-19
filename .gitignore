@@ -1,0 +1,11 @@
+# 秘密情報
+.env
+.env.*
+!.env.example
+
+# 依存関係
+node_modules/
+
+# エディタ / OS
+.idea/
+.DS_Store
