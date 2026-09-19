@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JEV SPEED</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b1020'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%235eead4'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="./css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="app">
+  <main id="stage">
+    <canvas id="table-canvas"></canvas>
+
+    <div id="scoreboard">
+      <div class="score score-cpu">
+        <span class="score-name">JEV</span>
+        <span class="score-num" id="cpu-count">26</span>
+        <span class="score-unit">cards</span>
+      </div>
+      <div class="score score-human">
+        <span class="score-name">YOU</span>
+        <span class="score-num" id="human-count">26</span>
+        <span class="score-unit">cards</span>
+      </div>
+    </div>
+
+    <div id="combo"></div>
+    <div id="foul-banner" hidden></div>
+    <div id="status-line"></div>
+
+    <label id="reveal-row">
+      <input type="checkbox" id="reveal-toggle" checked>
+      <span>Jev の場札を表向きにする</span>
+    </label>
+  </main>
+
+  <aside id="hud"></aside>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>テーブルを準備しています…</p>
+</div>
+
+<div id="overlay" hidden>
+  <div class="overlay-card">
+    <h1 id="overlay-title">JEV SPEED</h1>
+    <div id="overlay-body"></div>
+
+    <div class="overlay-options">
+      <label class="opt-row" for="foul-select">
+        <span class="opt-label">お手付きルール</span>
+        <select id="foul-select">
+          <option value="both" selected>両方に適用</option>
+          <option value="cpu">Jev のみ</option>
+          <option value="human">あなたのみ</option>
+          <option value="none">なし</option>
+        </select>
+      </label>
+      <p class="opt-note">
+        置けない札を出すと<strong>お手付き</strong>。その札は台札に乗らず、
+        そのプレイヤーだけ <strong>10 秒</strong> 手を出せなくなります
+        （連続でやると 15 → 22 → 最大 30 秒まで重くなり、1 回成功すると 10 秒に戻ります）。<br>
+        Jev に適用すると、Jev の判断をそのまま場に出すようになります
+        — 誤判定がそのままお手付きになります。
+      </p>
+    </div>
+
+    <button id="start-btn">ゲーム開始</button>
+    <p class="overlay-keys">
+      <kbd>1</kbd>–<kbd>5</kbd> 手札を選択 &nbsp;/&nbsp;
+      <kbd>←</kbd><kbd>→</kbd> 左右の台札に置く &nbsp;/&nbsp;
+      <kbd>Esc</kbd> 選択解除
+    </p>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
