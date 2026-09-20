@@ -201,6 +201,40 @@ export function createVFX(table3D): VFX
 ヒットストップ・スローモーション・画面フラッシュ・衝撃波・パーティクルは
 成功時/コンボ時/勝利時に main.js から呼ばれる。
 
+**追加 API（既存シグネチャは不変、追加のみ）**
+```js
+flame(pos, count, opts): void        // 炎（上へ加速しながら膨らむ粒子）
+water(pos, count, opts): void        // 水（高く上げて落ちる飛沫）
+lightning(pos, color, opts): void    // 落雷（リボン + 着弾の火花 + 輪）
+vortex(pos, color, count, opts): void
+pillar(pos, color, opts): void       // 光柱
+spawnRing(pos, color, opts): void    // 単発の輪。opts.billboard でカメラ正対
+radialBlast(strength): void          // 集中線（放射ブラー）
+setRage(level, color): void          // コンボ帯の常時演出 0..1
+setTension(level, color, hz): void   // 残り枚数の緊張。hz の心拍で脈打つ
+comboSurge(tier, pos, color): void   // 0=火花 1=水 2=炎 3=雷 4=全部乗せ
+finishBlast(pos, color, opts): () => void  // 「バチコーン」。戻り値で追撃をキャンセル
+```
+`setRage` と `setTension` は独立したチャンネルで、画面の熱は両者の max を採る。
+**どちらもカード自体は光らせない**（絵柄が読めなくなるため）。効くのは画面の縁、
+ビネット、bloom、リムライトの色だけ。
+
+### 5.3b sfx.js
+```js
+export function createSFX(): SFX
+{
+  unlock(): void            // 最初のユーザー操作で呼ぶ（自動再生ポリシー対策）
+  preload(): Promise<void>
+  setMuted(bool): void      // localStorage 'jevspeed.muted' に保存
+  isMuted(): boolean
+  loaded(): string[]
+  place(combo) / placeEnemy(combo) / surge(tier, friendly)
+  foul() / break() / flip() / speedCall() / danger() / chance() / finish(won)
+}
+```
+音源は `public/audio/*.mp3`（CC0 素材を加工）。読み込みに失敗したクリップは
+その場で合成した代替音に自動でフォールバックするので、音が無くても動作は変わらない。
+
 ## 6. スタイル規約
 - ES Modules。セミコロンあり。`const`/`let`。クラスは必要な箇所のみ。
 - 外部依存は three のみ(importmap 経由の CDN)。それ以外は追加しない。
@@ -225,9 +259,13 @@ export function createVFX(table3D): VFX
    前回問い合わせた局面と同一なら **リクエストを送らずに** `{move:null, telemetry:null, skipped:true}`
    を返す。リクエストが失敗した局面はシグネチャを破棄して再試行可能にする。
 6. `render3d.js` は契約 §5.2 に加えて `pilePosition(i)` / `handPosition(who, slot)` /
-   `centerPosition()` と、VFX 連携用の `_registerPass(pass)` / `_scene` / `_camera` /
+   `centerPosition()` / `cameraPunch(amount, ms)` / `setMood(level, color)` /
+   `setDeckGlow(level)` と、VFX 連携用の `_registerPass(pass)` / `_scene` / `_camera` /
    `_renderer` / `_composer` を公開する（追加のみ、既存シグネチャは不変）。
-7. `main.js` は `window.JEVSPEED = { table, vfx, hud, ai, rules, state, newGame }` を公開する。
+   `setMood` はリムライトと床の発光の**色**を変えるだけで、明るさはほとんど足さない
+   （足しすぎるとカードの絵柄が白飛びするため）。
+7. `main.js` は `window.JEVSPEED = { table, vfx, sfx, hud, ai, rules, state, combo, newGame, callSpeed }`
+   を公開する。`combo` は `{ owner, count, tier, best }` を返すゲッター。
 
 8. **手詰まり(フリップ)の正式ルール**: 任天堂公式および Wikibooks に準拠する。
    - 両者とも台札に重ねられない → **各自1枚を同時に台札へ**。
@@ -249,3 +287,13 @@ export function createVFX(table3D): VFX
      どちらのモードでも `isStackable` による機械的検証は必ず実行し、テレメトリに記録する。
 10. **場札は両者とも表向き**が標準（公式ルール）。`ViewModel.cpu.faceDown` の既定は `false`
     （`#reveal-toggle` は既定でチェック済み）。伏せるのはデモ用の任意設定。
+
+11. **コンボの所有者**: コンボは「同じプレイヤーが連続で `applyMove` を成功させた」ときだけ伸びる。
+    相手が 1 手でも成功させると `comboOwner` が切り替わり、カウントは 1 に戻る
+    （切られた側が 3 連鎖以上だった場合は `COMBO BREAK` を表示）。
+    自分のお手付き、および手詰まりのめくりでも切れる。
+
+12. **手詰まりは宣言制**: `rules.isStuck(state)` が真になったら自動ではめくらず、
+    `#speed-call` を出して入力を止める。`callSpeed()`（ボタン / `Space` / `Enter`）で
+    `applyFlip` を実行し、`CONFIG.FLIP_IMPACT_MS`(360ms) 後に着弾の演出を出す。
+    ルール上の挙動（§8）は変わらない。

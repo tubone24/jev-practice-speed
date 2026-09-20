@@ -80,26 +80,378 @@ html, body {
 .score-num { font: 700 24px/1 var(--mono); font-variant-numeric: tabular-nums; }
 .score-unit { font-size: 10px; color: var(--dim); letter-spacing: 0.1em; }
 
+/* ---------------------------------------------------------------- コンボ */
+
 #combo {
+  --combo-hue: #fbbf24;
+  --combo-glow: rgba(251, 191, 36, 0.75);
   position: absolute;
   top: 18%;
   left: 50%;
   transform: translateX(-50%);
   font: 900 44px/1 var(--mono);
   letter-spacing: 0.06em;
-  color: var(--amber);
-  text-shadow: 0 0 24px rgba(251, 191, 36, 0.7), 0 4px 0 rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  color: var(--combo-hue);
+  text-shadow: 0 0 24px var(--combo-glow), 0 4px 0 rgba(0, 0, 0, 0.4);
   pointer-events: none;
   opacity: 0;
 }
 
+/* 段階ごとの色と字の太さ。上がるほど大きく・眩しく */
+#combo[data-tier="aqua"]  { --combo-hue: #67e8f9; --combo-glow: rgba(56, 189, 248, 0.9);  font-size: 50px; }
+#combo[data-tier="flame"] { --combo-hue: #ffb054; --combo-glow: rgba(255, 110, 20, 0.95); font-size: 58px; }
+#combo[data-tier="storm"] { --combo-hue: #e0f2ff; --combo-glow: rgba(125, 211, 252, 1);   font-size: 66px; }
+#combo[data-tier="god"] {
+  --combo-hue: #fff;
+  --combo-glow: rgba(255, 214, 122, 1);
+  font-size: 78px;
+  background: linear-gradient(95deg, #fff2a8, #ff7a1e 35%, #ff2f6a 55%, #7dd3fc 85%, #fff);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: combo-pop 0.7s cubic-bezier(.17,.89,.32,1.28) forwards, god-shift 1.1s linear infinite;
+  filter: drop-shadow(0 0 26px rgba(255, 190, 80, 0.95));
+}
+#combo[data-tier="break"] {
+  --combo-hue: #94a3b8;
+  --combo-glow: rgba(148, 163, 184, 0.55);
+  font-size: 34px;
+  letter-spacing: 0.22em;
+}
+#combo[data-owner="cpu"] { text-shadow: 0 0 26px var(--combo-glow), 0 0 60px rgba(255, 47, 106, 0.55), 0 4px 0 rgba(0, 0, 0, 0.5); }
+
 #combo.pop { animation: combo-pop 0.7s cubic-bezier(.17,.89,.32,1.28) forwards; }
+#combo[data-tier="storm"].pop,
+#combo[data-tier="god"].pop { animation-duration: 0.95s; }
 
 @keyframes combo-pop {
   0%   { opacity: 0; transform: translateX(-50%) scale(2.2) rotate(-6deg); }
   18%  { opacity: 1; transform: translateX(-50%) scale(1) rotate(2deg); }
   70%  { opacity: 1; transform: translateX(-50%) scale(1); }
   100% { opacity: 0; transform: translateX(-50%) scale(1.15) translateY(-16px); }
+}
+
+@keyframes god-shift {
+  from { background-position: 0% 50%; }
+  to   { background-position: 260% 50%; }
+}
+
+/* ------------------------------------------------------------------ 煽り */
+
+#taunt {
+  position: absolute;
+  top: calc(18% + 76px);
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 19px/1.2 var(--sans);
+  letter-spacing: 0.08em;
+  color: #e6edf7;
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.9), 0 2px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#taunt[data-owner="cpu"] { color: #ffb4cf; text-shadow: 0 0 20px rgba(255, 47, 106, 0.85); }
+#taunt[data-owner="human"] { color: #9ef7e2; text-shadow: 0 0 20px rgba(45, 212, 191, 0.75); }
+#taunt.pop { animation: taunt-pop 2.2s ease-out forwards; }
+
+@keyframes taunt-pop {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(14px) scale(0.9); }
+  10%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* 開始画面で属性を色分けするための小物 */
+.el-aqua  { color: #67e8f9; font-weight: 700; }
+.el-flame { color: #ffb054; font-weight: 700; }
+.el-storm { color: #bfdbfe; font-weight: 700; }
+.el-god   { color: #fff3b0; font-weight: 900; text-shadow: 0 0 14px rgba(255, 200, 80, 0.8); }
+
+/* -------------------------------------------------------- コンボ帯の画面演出 */
+
+/* 盤面の縁が段階の色で脈打つ。3D 側の演出と合わせて「熱」を作る */
+#stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  box-shadow: inset 0 0 90px 10px var(--rage, transparent), inset 0 0 220px 40px var(--rage, transparent);
+  z-index: 3;
+}
+
+#stage[data-rage="aqua"],  #stage[data-rage="aqua-cpu"]  { --rage: rgba(56, 189, 248, 0.30); }
+#stage[data-rage="flame"], #stage[data-rage="flame-cpu"] { --rage: rgba(255, 110, 20, 0.36); }
+#stage[data-rage="storm"], #stage[data-rage="storm-cpu"] { --rage: rgba(147, 197, 253, 0.42); }
+#stage[data-rage="god"]     { --rage: rgba(94, 234, 212, 0.55); }
+#stage[data-rage="god-cpu"] { --rage: rgba(255, 47, 106, 0.55); }
+#stage[data-rage="spark"]   { --rage: rgba(251, 191, 36, 0.22); }
+#stage[data-rage="spark-cpu"] { --rage: rgba(255, 47, 106, 0.22); }
+
+/* 文字類は縁の発光より前に出す */
+#combo, #taunt, #foul-banner, #status-line, #scoreboard, #toggles { z-index: 4; }
+
+#stage[data-rage]:not([data-rage=""])::after { opacity: 1; animation: rage-pulse 1.1s ease-in-out infinite; }
+#stage[data-rage="storm"]::after, #stage[data-rage="storm-cpu"]::after { animation-duration: 0.7s; }
+#stage[data-rage="god"]::after, #stage[data-rage="god-cpu"]::after { animation-duration: 0.45s; }
+
+@keyframes rage-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* ------------------------------------------------------- スピード宣言ボタン */
+
+#speed-call {
+  position: absolute;
+  inset: auto 0 27%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 5;
+  pointer-events: none;
+  animation: sc-in 0.32s cubic-bezier(.17,.89,.32,1.28);
+}
+
+/* 盤面の上に重なるので、文字は暗い下地を敷いて必ず読めるようにする */
+.sc-lead, .sc-hint {
+  margin: 0;
+  padding: 5px 14px;
+  background: rgba(5, 8, 16, 0.72);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+}
+
+.sc-lead {
+  font: 700 13px/1 var(--mono);
+  letter-spacing: 0.3em;
+  color: var(--amber);
+  text-shadow: 0 0 16px rgba(251, 191, 36, 0.8);
+}
+
+#speed-btn {
+  pointer-events: auto;
+  padding: 16px 52px;
+  font: 900 40px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #1a1204;
+  background: linear-gradient(180deg, #ffe89a, #fbbf24 55%, #e08b0a);
+  border: 3px solid #fff3c4;
+  border-radius: 14px;
+  cursor: pointer;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 0 0 3px rgba(251, 191, 36, 0.28),
+    0 0 46px rgba(251, 191, 36, 0.75),
+    0 10px 0 #8a5a04,
+    0 14px 26px rgba(0, 0, 0, 0.55);
+  animation: sc-throb 0.85s ease-in-out infinite;
+  transition: transform 0.06s, box-shadow 0.12s;
+}
+
+#speed-btn:hover { filter: brightness(1.08); }
+
+#speed-btn:active {
+  transform: translateY(8px);
+  box-shadow:
+    0 0 0 3px rgba(251, 191, 36, 0.28),
+    0 0 60px rgba(251, 191, 36, 0.95),
+    0 2px 0 #8a5a04,
+    0 4px 12px rgba(0, 0, 0, 0.55);
+  animation: none;
+}
+
+.sc-hint {
+  font-size: 11px;
+  color: #b9c8de;
+  letter-spacing: 0.06em;
+}
+
+.sc-hint kbd {
+  padding: 1px 6px;
+  font: 600 10px/1.6 var(--mono);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+
+@keyframes sc-in {
+  from { opacity: 0; transform: translateY(26px) scale(0.88); }
+}
+
+@keyframes sc-throb {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.055); }
+}
+
+/* ------------------------------------------------- 残り枚数の緊張（死にかけ） */
+
+/* 心拍。残りが減るほど速く、視界が締まっていく */
+#stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+  box-shadow:
+    inset 0 0 110px 20px var(--ten, transparent),
+    inset 0 0 300px 80px var(--ten, transparent);
+}
+
+#stage[data-tension^="danger"] { --ten: rgba(255, 36, 54, 0.50); }
+#stage[data-tension^="chance"] { --ten: rgba(54, 240, 196, 0.40); }
+#stage[data-tension$="-1"] { --beat: 1.40s; }
+#stage[data-tension$="-2"] { --beat: 0.95s; }
+#stage[data-tension$="-3"] { --beat: 0.60s; }
+
+#stage[data-tension^="danger"]::before,
+#stage[data-tension^="chance"]::before {
+  animation: heartbeat var(--beat, 1.4s) cubic-bezier(.2,.8,.3,1) infinite;
+}
+
+/* ドクン…ドクン の二拍 */
+@keyframes heartbeat {
+  0%          { opacity: 0.14; }
+  6%          { opacity: 1; }
+  17%         { opacity: 0.26; }
+  24%         { opacity: 0.74; }
+  38%, 100%   { opacity: 0.14; }
+}
+
+/* 残り 5 枚を切ったスコアだけ警告表示 */
+.score.low { animation: score-alarm 0.9s ease-in-out infinite; }
+.score-cpu.low {
+  border-color: #ff2436;
+  box-shadow: 0 0 28px rgba(255, 36, 54, 0.6);
+}
+.score-cpu.low .score-num { color: #ff6b7a; }
+.score-human.low {
+  border-color: #36f0c4;
+  box-shadow: 0 0 28px rgba(54, 240, 196, 0.55);
+}
+.score-human.low .score-num { color: #7ef7dc; }
+
+@keyframes score-alarm {
+  50% { transform: scale(1.07); }
+}
+
+/* ----------------------------------------------------------- フィニッシュ */
+
+#finish {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  place-items: center;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 6;
+  overflow: hidden;
+}
+
+/* 集中線 */
+.finish-rays {
+  position: absolute;
+  inset: -40%;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(255, 255, 255, 0.55) 0deg 1.1deg,
+    transparent 1.1deg 4.2deg
+  );
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 14%, #000 46%, #000 100%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 14%, #000 46%, #000 100%);
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+/* 画面を殴る白 */
+.finish-slam {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+}
+
+#finish-word {
+  position: relative;
+  font: 900 clamp(48px, 11vw, 148px)/0.94 var(--mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: #fff;
+  opacity: 0;
+  text-shadow:
+    0 0 10px #fff,
+    0 0 40px var(--finish-glow, #ffd76a),
+    0 0 90px var(--finish-glow, #ffd76a),
+    0 8px 0 rgba(0, 0, 0, 0.55);
+}
+
+#finish-sub {
+  position: relative;
+  font: 900 clamp(20px, 3.4vw, 46px)/1 var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--finish-ink, #ffd76a);
+  opacity: 0;
+  text-shadow: 0 0 26px var(--finish-glow, #ffd76a), 0 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+#finish[data-result="win"]  { --finish-glow: rgba(94, 234, 212, 0.95);  --finish-ink: #5eead4; }
+#finish[data-result="lose"] { --finish-glow: rgba(244, 114, 182, 0.95); --finish-ink: #f472b6; }
+#finish[data-result="draw"] { --finish-glow: rgba(251, 191, 36, 0.95);  --finish-ink: #fbbf24; }
+
+#finish.go .finish-slam { animation: slam-flash 0.9s cubic-bezier(.2,.8,.2,1) forwards; }
+#finish.go .finish-rays { animation: rays-in 3.2s cubic-bezier(.12,.9,.3,1) forwards; }
+#finish.go #finish-word { animation: word-slam 3.2s cubic-bezier(.12,.9,.3,1) forwards; }
+#finish.go #finish-sub  { animation: sub-in 3.2s cubic-bezier(.2,.9,.3,1) forwards; }
+
+@keyframes slam-flash {
+  0%  { opacity: 0.95; }
+  12% { opacity: 0.85; }
+  100%{ opacity: 0; }
+}
+
+@keyframes rays-in {
+  0%   { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  6%   { opacity: 0.9; transform: scale(1) rotate(3deg); }
+  40%  { opacity: 0.4; transform: scale(1.08) rotate(14deg); }
+  100% { opacity: 0; transform: scale(1.3) rotate(34deg); }
+}
+
+/* 「バチコーン!!」: 画面外から叩きつけて、揺らして、居座る */
+@keyframes word-slam {
+  0%   { opacity: 0; transform: scale(5.5) rotate(-12deg); filter: blur(14px); }
+  5%   { opacity: 1; transform: scale(1) rotate(-3deg); filter: blur(0); }
+  8%   { transform: scale(1.14) rotate(2deg); }
+  11%  { transform: scale(0.97) rotate(-1.5deg); }
+  14%  { transform: scale(1.05) rotate(1deg); }
+  18%  { transform: scale(1) rotate(0deg); }
+  22%  { transform: scale(1) translateX(-6px); }
+  25%  { transform: scale(1) translateX(6px); }
+  28%  { transform: scale(1) translateX(0); }
+  85%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1) translateY(-22px); }
+}
+
+@keyframes sub-in {
+  0%, 8% { opacity: 0; transform: translateY(26px) scale(0.85); letter-spacing: 0.02em; }
+  16%    { opacity: 1; transform: translateY(0) scale(1); letter-spacing: 0.34em; }
+  85%    { opacity: 1; }
+  100%   { opacity: 0; transform: translateY(-14px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #finish.go .finish-rays,
+  #finish.go #finish-word,
+  #finish.go #finish-sub { animation-duration: 0.4s; }
+  #stage::after, #stage::before, .score.low, #speed-btn { animation: none !important; }
 }
 
 #foul-banner {
@@ -148,10 +500,16 @@ html, body {
   white-space: nowrap;
 }
 
-#reveal-row {
+#toggles {
   position: absolute;
   right: 16px;
   bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.toggle {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -161,7 +519,7 @@ html, body {
   user-select: none;
 }
 
-#reveal-row input { accent-color: var(--teal); }
+.toggle input { accent-color: var(--teal); }
 
 /* -------------------------------------------------------------------- HUD */
 

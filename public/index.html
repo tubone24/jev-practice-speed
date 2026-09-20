@@ -35,13 +35,36 @@
     </div>
 
     <div id="combo"></div>
+    <div id="taunt"></div>
     <div id="foul-banner" hidden></div>
+
+    <!-- 手詰まり: 両者とも出せないとき、自分で宣言してめくる -->
+    <div id="speed-call" hidden>
+      <p class="sc-lead">両者とも出せません</p>
+      <button id="speed-btn" type="button">スピード！</button>
+      <p class="sc-hint">押すと山札から 1 枚ずつ台札にめくります（<kbd>Space</kbd>）</p>
+    </div>
+
     <div id="status-line"></div>
 
-    <label id="reveal-row">
-      <input type="checkbox" id="reveal-toggle" checked>
-      <span>Jev の場札を表向きにする</span>
-    </label>
+    <!-- フィニッシュ演出: 集中線 + 「バチコーン!!」 -->
+    <div id="finish" hidden>
+      <div class="finish-rays"></div>
+      <div class="finish-slam"></div>
+      <div id="finish-word"></div>
+      <div id="finish-sub"></div>
+    </div>
+
+    <div id="toggles">
+      <label class="toggle">
+        <input type="checkbox" id="reveal-toggle" checked>
+        <span>Jev の場札を表向きにする</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="sound-toggle" checked>
+        <span>効果音</span>
+      </label>
+    </div>
   </main>
 
   <aside id="hud"></aside>

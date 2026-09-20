@@ -215,6 +215,11 @@ export async function createTable(canvas) {
   rimCool.position.set(-4.6, 1.5, 3.2);
   scene.add(rimCool);
 
+  // ムード演出の基準色（setMood がここから染める）
+  const RIM_WARM_BASE = new THREE.Color(0xff5fa8);
+  const RIM_COOL_BASE = new THREE.Color(0x35f2d8);
+  const GLOW_BASE = new THREE.Color(0x2fe6c0);
+
   // --- テーブル
   const feltMap = feltTexture();
   const feltBump = feltBumpTexture();
@@ -368,7 +373,7 @@ export async function createTable(canvas) {
     m.visible = false;
     scene.add(m);
     matDisposables.push(sides, top, bottom);
-    return { mesh: m, count: -1 };
+    return { mesh: m, count: -1, mats: [sides, top, bottom] };
   }
   // rules.js の配分に合わせる: 人間=赤札(hearts/diamonds)、Jev=黒札(spades/clubs)
   const humanDeck = createDeck('red');
@@ -385,7 +390,9 @@ export async function createTable(canvas) {
     deck.mesh.visible = n > 0;
     const th = Math.max(0.02, n * 0.016);
     deck.mesh.scale.y = th;
-    deck.mesh.position.y = TABLE_Y + th / 2 + 0.002;
+    // 山札の注目演出が持ち上げるので、基準の高さを覚えておく
+    deck.mesh.userData.baseY = TABLE_Y + th / 2 + 0.002;
+    deck.mesh.position.y = deck.mesh.userData.baseY;
   }
 
   // 台札の下に溜まる厚み
@@ -465,6 +472,12 @@ export async function createTable(canvas) {
   let elapsed = 0;
 
   const shake = { mag: 0, decay: 7.0, t: 0 };
+  /** カメラの寄り（フィニッシュの一撃で使う）。peak は 0..1 の寄り率 */
+  const punch = { peak: 0, t: 0, dur: 420 };
+  /** 山札の注目演出（スピード宣言待ち） */
+  const deckGlow = { amt: 0, target: 0 };
+  /** コンボ帯のムード。リムライトと床の発光を染める */
+  const mood = { level: 0, target: 0, color: new THREE.Color(0x000000), targetColor: new THREE.Color(0x000000) };
   const tweens = [];
   const flyers = [];
 
@@ -848,6 +861,33 @@ export async function createTable(canvas) {
     shake.t = 0;
   }
 
+  /**
+   * カメラを一気に寄せて、ゆっくり戻す。フィニッシュの「バチコーン」用。
+   * @param {number} amount 寄り率 0..1（0.4 でだいぶ近い）
+   * @param {number} ms 戻りきるまで
+   */
+  function cameraPunch(amount, ms) {
+    punch.peak = Math.max(punch.peak, Math.min(0.85, Math.max(0, Number(amount) || 0)));
+    punch.dur = Math.max(120, Number(ms) || 420);
+    punch.t = 0;
+  }
+
+  /**
+   * 山札の注目度。0..1。「スピード！」の宣言待ちに山札を脈打たせて、
+   * どこから札が出てくるのかを見せる。
+   */
+  function setDeckGlow(level) {
+    deckGlow.target = Math.max(0, Math.min(1, Number(level) || 0));
+  }
+
+  /**
+   * コンボ帯のムード。level 0..1 でリムライトと床の発光を color 側に寄せる。
+   */
+  function setMood(level, color) {
+    mood.target = Math.max(0, Math.min(1, Number(level) || 0));
+    mood.targetColor.set(color != null ? color : 0x000000);
+  }
+
   // ---------------------------------------------------------------- render
 
   const composer = new EffectComposer(renderer);
@@ -923,9 +963,10 @@ export async function createTable(canvas) {
       if (g > 0.002 || c.faceMat.emissive.r > 0.002) {
         const base = isSel ? 0x2ff0c8 : 0x2a8cff;
         c.glowColor.setHex(base);
-        c.faceMat.emissive.copy(c.glowColor).multiplyScalar(g * (isSel ? 0.26 : 0.12));
+        // 絵柄が読めなくなるので面はごく弱く。強調は「縁」と台札のリングに任せる
+        c.faceMat.emissive.copy(c.glowColor).multiplyScalar(g * (isSel ? 0.07 : 0.03));
         c.sideMat.emissive = c.sideMat.emissive || new THREE.Color();
-        c.sideMat.emissive.copy(c.glowColor).multiplyScalar(g * 0.85);
+        c.sideMat.emissive.copy(c.glowColor).multiplyScalar(g * 1.25);
       }
     }
 
@@ -934,21 +975,71 @@ export async function createTable(canvas) {
       const pm = pileMarkers[i];
       pm.amt = damp(pm.amt, pm.on ? 1 : 0, 10, s);
       const pulse = 0.55 + 0.45 * Math.sin(elapsed * 0.008 + i * 1.3);
-      pm.ringMat.opacity = pm.amt * (0.35 + 0.5 * pulse);
-      pm.ring.scale.setScalar(1.32 + pm.amt * 0.1 * pulse);
+      // カード面を光らせる代わりに、台のリングを強めに出す
+      pm.ringMat.opacity = pm.amt * (0.55 + 0.45 * pulse);
+      pm.ring.scale.setScalar(1.32 + pm.amt * 0.14 * pulse);
       const pc = pileCards[i];
       if (pc) {
-        pc.faceMat.emissive.setRGB(0.0, 0.14 * pm.amt * pulse, 0.11 * pm.amt * pulse);
+        pc.faceMat.emissive.setRGB(0.0, 0.045 * pm.amt * pulse, 0.035 * pm.amt * pulse);
+        if (pc.sideMat) {
+          pc.sideMat.emissive = pc.sideMat.emissive || new THREE.Color();
+          pc.sideMat.emissive.setRGB(0.0, 0.5 * pm.amt * pulse, 0.4 * pm.amt * pulse);
+        }
       }
     }
 
-    // 中央グロー & リムライトの揺らぎ
-    glowMat.opacity = 0.04 + 0.02 * Math.sin(elapsed * 0.0015) + Math.min(0.09, combo * 0.015);
-    rimWarm.intensity = 6.5 + Math.sin(elapsed * 0.0021) * 2.0;
-    rimCool.intensity = 5.5 + Math.cos(elapsed * 0.0017) * 2.0;
+    // 山札の脈動（宣言待ちのあいだだけ）
+    deckGlow.amt = damp(deckGlow.amt, deckGlow.target, 9, s);
+    if (deckGlow.amt > 0.002) {
+      const gp = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(elapsed * 0.0075));
+      const e = deckGlow.amt * gp;
+      for (const d of [humanDeck, cpuDeck]) {
+        if (!d.mats) continue;
+        for (const m of d.mats) {
+          m.emissive = m.emissive || new THREE.Color();
+          m.emissive.setRGB(0.62 * e, 0.45 * e, 0.06 * e);
+        }
+        d.mesh.position.y = (d.mesh.userData.baseY || 0) + e * 0.12;
+      }
+    } else if (deckGlow.wasOn) {
+      for (const d of [humanDeck, cpuDeck]) {
+        if (d.mats) for (const m of d.mats) { if (m.emissive) m.emissive.setRGB(0, 0, 0); }
+        d.mesh.position.y = d.mesh.userData.baseY || 0;
+      }
+    }
+    deckGlow.wasOn = deckGlow.amt > 0.002;
 
-    // カメラシェイク
+    // コンボ帯のムード追従（上がるのは速く、冷めるのは遅く）
+    {
+      const up = 1 - Math.exp(-6.0 * s);
+      const down = 1 - Math.exp(-2.0 * s);
+      mood.level += (mood.target - mood.level) * (mood.target > mood.level ? up : down);
+      mood.color.lerp(mood.targetColor, up);
+    }
+    const moodPulse = 0.5 + 0.5 * Math.sin(elapsed * 0.012);
+
+    // 中央グロー & リムライトの揺らぎ
+    // ムードは「色」で見せる。明るさを足しすぎるとカードの絵柄が白飛びするので控えめに。
+    glowMat.opacity = 0.04 + 0.02 * Math.sin(elapsed * 0.0015)
+      + Math.min(0.06, combo * 0.010)
+      + mood.level * (0.045 + 0.030 * moodPulse);
+    glowMat.color.copy(GLOW_BASE).lerp(mood.color, mood.level * 0.9);
+    rimWarm.intensity = 6.5 + Math.sin(elapsed * 0.0021) * 2.0 + mood.level * (3.0 + 2.2 * moodPulse);
+    rimCool.intensity = 5.5 + Math.cos(elapsed * 0.0017) * 2.0 + mood.level * (2.5 + 1.8 * moodPulse);
+    rimWarm.color.copy(RIM_WARM_BASE).lerp(mood.color, mood.level * 0.9);
+    rimCool.color.copy(RIM_COOL_BASE).lerp(mood.color, mood.level * 0.7);
+    spot.intensity = 60 + mood.level * 8 * moodPulse;
+
+    // カメラシェイク / 寄り
     camPos.copy(camBase);
+    if (punch.peak > 0.0001) {
+      punch.t += dt;
+      const k = Math.min(1, punch.t / punch.dur);
+      // 12% で一気に寄って、残りでゆっくり戻る
+      const e = k < 0.12 ? (k / 0.12) : Math.pow(1 - (k - 0.12) / 0.88, 2.4);
+      camPos.lerp(camTarget, punch.peak * e);
+      if (k >= 1) { punch.peak = 0; punch.t = 0; }
+    }
     if (shake.mag > 0.0005) {
       shake.t += s;
       const m = shake.mag;
@@ -1033,7 +1124,7 @@ export async function createTable(canvas) {
     syncState, render, resize, pickHandSlot, pickPile,
     animatePlay, animateFlip, setSelected, highlightPiles, cameraShake, dispose,
     // --- 追加ヘルパー（契約外・互換のため追加のみ）
-    pilePosition, handPosition, centerPosition,
+    pilePosition, handPosition, centerPosition, cameraPunch, setMood, setDeckGlow,
     // --- VFX 連携用の内部フック
     _registerPass,
     _scene: scene,
