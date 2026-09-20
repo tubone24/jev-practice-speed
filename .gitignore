@@ -9,3 +9,6 @@ node_modules/
 # エディタ / OS
 .idea/
 .DS_Store
+
+# 効果音の元素材（scripts/build-audio.sh が展開する作業用。成果物の public/audio だけをコミットする）
+.sfx-src/
