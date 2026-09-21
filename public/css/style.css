@@ -557,6 +557,163 @@ html, body {
 
 .hud-hint { margin: -4px 0 10px; font-size: 10px; color: var(--dim); line-height: 1.5; }
 
+/* --- mood: Jev の顔 --- */
+
+.hud-mood { --mood-c: var(--dim); --mood-glow: rgba(143, 163, 192, 0); }
+.hud-mood[data-mood="relaxed"]   { --mood-c: var(--teal);  --mood-glow: rgba(94, 234, 212, 0.35); }
+.hud-mood[data-mood="steady"]    { --mood-c: #a3e635;      --mood-glow: rgba(163, 230, 53, 0.30); }
+.hud-mood[data-mood="strained"]  { --mood-c: var(--amber); --mood-glow: rgba(251, 191, 36, 0.35); }
+.hud-mood[data-mood="cornered"]  { --mood-c: #fb7185;      --mood-glow: rgba(251, 113, 133, 0.45); }
+.hud-mood[data-mood="checkmate"] { --mood-c: var(--red);   --mood-glow: rgba(248, 113, 113, 0.30); }
+
+.hud-mood .hud-title { color: var(--mood-c); transition: color 0.3s; }
+.hud-mood[data-mood="cornered"] { animation: mood-alarm 0.7s ease-in-out infinite; }
+
+@keyframes mood-alarm {
+  0%, 100% { box-shadow: 0 0 0 0 var(--mood-glow); }
+  50%      { box-shadow: 0 0 22px 2px var(--mood-glow); }
+}
+
+.mood-body { display: grid; grid-template-columns: 78px 1fr; gap: 12px; align-items: center; }
+
+.mood-face {
+  width: 78px;
+  height: 78px;
+  color: var(--mood-c);
+  filter: drop-shadow(0 0 10px var(--mood-glow));
+  transition: color 0.3s, filter 0.3s;
+}
+.mood-face svg { width: 100%; height: 100%; overflow: visible; }
+.mood-face.pop { animation: mood-pop 0.55s cubic-bezier(.17,.89,.32,1.28); }
+
+@keyframes mood-pop {
+  0%   { transform: scale(0.7) rotate(-10deg); }
+  60%  { transform: scale(1.18) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* 顔のパーツ。線は現在色、頭はパネルよりわずかに明るい */
+.f-head { fill: rgba(255, 255, 255, 0.05); stroke: currentColor; stroke-width: 3; transition: fill 0.3s; }
+.f-features { transform-origin: 50px 52px; transition: transform 0.25s; }
+.f-line { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.f-open { fill: rgba(0, 0, 0, 0.45); }
+.f-eye { fill: currentColor; }
+.f-eye-ring { fill: #fff; stroke: currentColor; stroke-width: 2.5; }
+.f-spark { fill: #fff8c2; animation: mood-spark 1.6s ease-in-out infinite; transform-origin: 82px 30px; }
+.f-sweat { fill: #7dd3fc; animation: mood-sweat 1.1s ease-in infinite; }
+.f-sweat.late { animation-delay: 0.55s; }
+
+@keyframes mood-spark {
+  0%, 100% { transform: scale(0.6) rotate(0); opacity: 0.4; }
+  50%      { transform: scale(1.15) rotate(30deg); opacity: 1; }
+}
+@keyframes mood-sweat {
+  0%   { transform: translateY(-6px); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(10px); opacity: 0; }
+}
+
+/* 気分ごとの仕草 */
+.hud-mood[data-mood="relaxed"] .f-features { animation: mood-bob 2.2s ease-in-out infinite; }
+.hud-mood[data-mood="cornered"] .f-features { animation: mood-shiver 0.14s linear infinite; }
+.hud-mood[data-mood="checkmate"] .mood-face { filter: grayscale(0.55) drop-shadow(0 0 8px var(--mood-glow)); }
+.hud-mood[data-mood="checkmate"] .f-features { transform: rotate(-7deg) translateY(2px); }
+.hud-mood.is-thinking .f-features { transform: translate(2px, -2px); }
+
+@keyframes mood-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.5px) rotate(2deg); }
+}
+@keyframes mood-shiver {
+  0%   { transform: translate(-1.2px, 0.4px); }
+  50%  { transform: translate(1.2px, -0.4px); }
+  100% { transform: translate(-1.2px, 0.4px); }
+}
+
+.mood-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.mood-label {
+  font: 900 30px/1 var(--sans);
+  letter-spacing: 0.06em;
+  color: var(--mood-c);
+  text-shadow: 0 0 16px var(--mood-glow);
+  transition: color 0.3s, text-shadow 0.3s;
+}
+.hud-mood[data-mood="idle"] .mood-label { font-weight: 700; font-size: 20px; }
+
+.mood-bubble {
+  position: relative;
+  padding: 6px 9px;
+  font: 600 11px/1.45 var(--sans);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mood-bubble::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%) rotate(45deg);
+  background: inherit;
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+.hud-mood.is-thinking .mood-bubble { color: var(--dim); }
+.hud-mood.is-thinking .mood-bubble::after { content: ' …'; animation: mood-dots 0.9s steps(3) infinite; }
+.hud-mood[data-mood="checkmate"] .mood-bubble { color: var(--dim); }
+
+@keyframes mood-dots { from { opacity: 0.2; } to { opacity: 1; } }
+
+/* 圧力ゲージ。左=選択肢が多い(余裕) … 右=出せる手が無い */
+.mood-gauge { margin-top: 10px; }
+.mood-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    rgba(94, 234, 212, 0.18), rgba(163, 230, 53, 0.18), rgba(251, 191, 36, 0.18), rgba(248, 113, 113, 0.18));
+  overflow: visible;
+}
+.mood-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--teal), var(--mood-c));
+  transition: width 0.35s cubic-bezier(.2,.8,.3,1), background 0.3s;
+}
+.mood-marker {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--mood-c);
+  box-shadow: 0 0 0 3px rgba(5, 7, 15, 0.9), 0 0 12px var(--mood-glow);
+  transition: left 0.35s cubic-bezier(.2,.8,.3,1), background 0.3s;
+}
+.hud-mood[data-mood="idle"] .mood-marker { opacity: 0.35; }
+
+.mood-ticks { display: flex; justify-content: space-between; margin-top: 5px; }
+.mood-ticks span { font: 600 8px/1 var(--mono); letter-spacing: 0.08em; color: var(--dim); }
+
+.mood-foot {
+  margin-top: 8px;
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- latency --- */
 
 .lat-big {

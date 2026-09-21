@@ -25,6 +25,12 @@ export const TUNING = {
   RETRIES: 1,
 };
 
+/**
+ * pressure(score 型) の段階。index 0 が最も余裕、末尾が最も苦しい。
+ * score は 0 .. PRESSURE_LEVELS.length-1 の実数で返る。HUD の「気分」はこれを正規化して使う。
+ */
+export const PRESSURE_LEVELS = ['Many good options', 'A few options', 'Only one option', 'No legal move at all'];
+
 const RULE_TEXT =
   'In the card game Speed, a card may be stacked onto a pile only if its rank is ' +
   'exactly one step away from the rank of the pile\'s top card. ' +
@@ -42,6 +48,8 @@ const RULE_TEXT =
  *   latencyMs:number, roundTripMs:number, usage:object, mock:boolean,
  *   candidates:CandidateReport[], accuracy:{correct:number,total:number},
  *   choice:{key:string, confidence:number, probabilities:object}|null,
+ *   pressure:number|null,
+ *   pressureDetail:{score:number, max:number, confidence:number, legend:object, probabilities:object}|null,
  *   chosen:{handIndex:number, pileIndex:number}|null,
  *   falsePositives:number, falseNegatives:number,
  *   rejectedByValidator:number, reason:string
@@ -86,7 +94,7 @@ function buildQuestions(payload) {
   questions.pressure = {
     type: 'score',
     instructions: 'How tight is this position for the player — how few options do they have?',
-    criteria: ['Many good options', 'A few options', 'Only one option', 'No legal move at all'],
+    criteria: PRESSURE_LEVELS,
   };
 
   return questions;
@@ -271,6 +279,19 @@ export function createJevPlayer({
     const willFoul = !!picked && !picked.truth;
     if (willFoul) reason += ' → お手付き';
 
+    // ---- 局面の圧力(score) ----
+    // Jev が「自分にどれだけ選択肢があるか」を 0..max で答える。HUD の気分表示に使う。
+    const pAns = answers.pressure;
+    const pressureAns = typeof pAns?.score === 'number' && Number.isFinite(pAns.score)
+      ? {
+          score: pAns.score,
+          max: PRESSURE_LEVELS.length - 1,
+          confidence: typeof pAns.confidence === 'number' ? pAns.confidence : 0,
+          legend: pAns.legend ?? {},
+          probabilities: pAns.probabilities ?? {},
+        }
+      : null;
+
     return {
       latencyMs: res.latencyMs ?? 0,
       roundTripMs: res.roundTripMs ?? 0,
@@ -279,7 +300,8 @@ export function createJevPlayer({
       candidates,
       accuracy: { correct, total: candidates.length },
       choice: choiceAns ? { key: choiceKey, confidence, probabilities: choiceAns.probabilities ?? {} } : null,
-      pressure: answers.pressure?.score ?? null,
+      pressure: pressureAns ? pressureAns.score : null,
+      pressureDetail: pressureAns,
       chosen: picked ? { handIndex: picked.handIndex, pileIndex: picked.pileIndex } : null,
       chosenCard: picked?.card ?? null,
       falsePositives,

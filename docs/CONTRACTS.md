@@ -16,6 +16,7 @@ public/js/
   card-texture.js … SVG -> THREE.Texture 変換      [担当D]
   render3d.js     … Three.js 3D テーブル描画        [担当D]
   vfx.js          … ヒットストップ/シェイク/粒子     [担当D]
+  mood.js         … pressure(score) → Jev の気分 (純粋) [統合担当]
   hud.js          … Jev計測HUD                     [統合担当]
   ai.js           … Jev駆動CPUプレイヤー            [統合担当]
   main.js         … ゲームループ/入力/統合          [統合担当]
@@ -297,3 +298,14 @@ export function createSFX(): SFX
     `#speed-call` を出して入力を止める。`callSpeed()`（ボタン / `Space` / `Enter`）で
     `applyFlip` を実行し、`CONFIG.FLIP_IMPACT_MS`(360ms) 後に着弾の演出を出す。
     ルール上の挙動（§8）は変わらない。
+
+13. **局面の圧力 (pressure) と Jev の気分**: `ai.js` は毎リクエストに `pressure`(`type:'score'`,
+    criteria は `PRESSURE_LEVELS` の 4 段階) を同梱し、`Telemetry.pressure`(0..3 の実数) と
+    `Telemetry.pressureDetail = { score, max, confidence, legend, probabilities }` に載せる
+    (回答が無い / 数値でないときは `null`)。
+    `mood.js` の `classifyPressure(score, { max, confidence })` はこれを `level = score/max`(0..1) に
+    正規化し、`MOODS` の `from` 閾値で 5 段階 `relaxed(余裕) / steady(平常) / strained(苦しい) /
+    cornered(窮地) / checkmate(手なし)` に分類する。score が無ければ `MOOD_IDLE`。
+    `hud.js` は `onDecision` のたびに `setPressure(t.pressureDetail)` を呼び、「JEV MOOD」パネルの
+    顔・ラベル・セリフ・ゲージを更新する (`hud.setPressure(detail)` / `hud.mood` は公開)。
+    判定は **Jev 自身の score 回答だけ**に基づき、残り枚数やルール検証の結果は混ぜない。

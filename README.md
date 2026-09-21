@@ -33,6 +33,7 @@ This double structure is what feeds the HUD:
 
 | Panel | Contents |
 |---|---|
+| **JEV MOOD** | Jev's face. Each request also asks Jev a `score` question (`pressure`: "how few options do you have?", 0–3). The score is classified into 余裕 / 平常 / 苦しい / 窮地 / 手なし and shown as an expression, a one-liner and a gauge — so you can see at a glance whether Jev is comfortable or cornered in the current position |
 | **JEV LATENCY** | Latest latency, sparkline, p50 / p95 / min / max |
 | **JEV JUDGEMENT** | noul bar per candidate move, the move Jev picked, agreement with the mechanical check ✓/✗ |
 | **RULE VALIDATOR** | Cumulative accuracy, false positive / false negative counts, how often the validator rejected a move, token usage and estimated cost |
@@ -309,7 +310,8 @@ public/
     render3d.js     Three.js table, cards, lighting and raycasting
     vfx.js          Hitstop / slow motion / particles / fire, water, lightning / heartbeat / post-processing
     sfx.js          Sound effects. Plays mp3s via WebAudio (falls back to synthesis on failure)
-    hud.js          The Jev measurement HUD
+    mood.js         Pure classifier: Jev's `pressure` score → how comfortable / cornered Jev is
+    hud.js          The Jev measurement HUD (latency, judgements, validator, fouls, and Jev's mood)
     main.js         Game loop, input, combos, tension, integration
   audio/            Sound effect mp3s (built from CC0 samples)
 scripts/
@@ -402,6 +404,8 @@ JEVSPEED.newGame()
 npm test    # node --test "test/*.test.mjs"
 ```
 
+- `mood.test.mjs` — the pressure → mood classifier: thresholds, clamping, monotonicity, idle when
+  there is no score
 - `rules.test.mjs` — all 13×13 rank pairs, the A↔K wrap, same-rank rejection, invariants (always 52
   cards), that illegal moves leave the state unchanged, a 200-game fuzz, and that no answer leaks
   into the state sent to Jev
