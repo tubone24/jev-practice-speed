@@ -14,6 +14,23 @@ const RETRYABLE = new Set([429, 529]);
 const RETRY_DELAYS_MS = [250, 750];
 const LATENCY_WINDOW = 200;
 
+// ---------------------------------------------------------------- セッション
+
+// Turnstile を通すと発行される短命セッション。APIキーではなく、
+// 「このブラウザは人間だと確認済み」であることだけを示す署名付きトークン。
+let sessionToken = '';
+let sessionRefresher = null;
+
+/** ゲート通過後にトークンを預ける。空文字で破棄。 */
+export function setSessionToken(token) {
+  sessionToken = typeof token === 'string' ? token : '';
+}
+
+/** セッション期限切れ (401) のときに呼ばれる再取得関数を登録する。 */
+export function setSessionRefresher(fn) {
+  sessionRefresher = typeof fn === 'function' ? fn : null;
+}
+
 /** 直近 LATENCY_WINDOW 件の上流レイテンシ (ms) */
 const latencies = [];
 
@@ -97,7 +114,10 @@ export async function askJev(state, questions, opts = {}) {
     try {
       res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+        },
         body,
         signal,
       });
@@ -133,6 +153,16 @@ export async function askJev(state, questions, opts = {}) {
     const message = (errData && errData.error) || `Jev request failed (${res.status})`;
     lastError = new JevError(message, res.status);
 
+    // セッション切れは取り直して 1 度だけやり直す (対戦中に締め出さない)
+    if (res.status === 401 && errData && errData.code === 'session_required' && sessionRefresher && attempt < retries) {
+      try {
+        await sessionRefresher();
+        continue;
+      } catch (err) {
+        throw new JevError(`Session refresh failed: ${err && err.message ? err.message : err}`, 401);
+      }
+    }
+
     // 429 / 529 のみ指数バックオフでリトライ
     if (RETRYABLE.has(res.status) && attempt < retries) {
       const base = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
@@ -164,5 +194,13 @@ export async function jevHealth(opts = {}) {
   }
   const data = await parseJSON(res);
   if (!data) throw new JevError('Malformed health response', res.status);
-  return { ok: data.ok === true, hasKey: data.hasKey === true, mock: data.mock === true, model: data.model };
+  return {
+    ok: data.ok === true,
+    hasKey: data.hasKey === true,
+    mock: data.mock === true,
+    model: data.model,
+    // 公開値。サイトキーはブラウザに出る前提のもので、秘密鍵ではない。
+    turnstileSiteKey: typeof data.turnstileSiteKey === 'string' ? data.turnstileSiteKey : '',
+    requiresSession: data.requiresSession === true,
+  };
 }

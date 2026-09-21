@@ -1,216 +1,330 @@
 # JEV SPEED
 
-トランプの **スピード** を、CPU 側の頭脳に [TypeSafe AI の Jev](https://typesafe.ai/) を使って対戦する
-WebGL デモアプリ。**Jev の判断速度と判断精度をリアルタイムに計測して見せる**ことが目的。
+A WebGL demo where you play the card game **Speed** against a CPU whose brain is
+[TypeSafe AI's Jev](https://typesafe.ai/). The whole point of the app is to **measure and show
+Jev's decision speed and decision accuracy in real time**.
+
+![demo](./docs/images/demo.gif)
 
 ```
-あなた (赤札 26枚)  vs  Jev (黒札 26枚)
+You (26 red cards)  vs  Jev (26 black cards)
 ```
 
 ---
 
-## これは何を見せるデモか
+## What this demo shows
 
-Jev は **System One モデル** — テキストを生成せず、事前に定義した型付きの決定を
-確率つきで 1 パスで返す。公称 70〜500ms。このアプリはその特性をゲームの文脈で可視化する。
+Jev is a **System One model** — it generates no text, and instead returns pre-defined typed
+decisions with probabilities in a single pass. Officially 70–500ms. This app makes that
+characteristic visible in the context of a game.
 
-毎ターン、CPU は自分の手札 × 台札 2 枚の全組み合わせ（最大 10 通り）について
+Every turn, the CPU takes every combination of its hand × the 2 piles (up to 10 of them) and asks
 
-> 「この札はこの台札に積めるか?」
+> "Can this card be stacked on this pile?"
 
-という **noul**（0〜1 の確率）を **1 リクエストで並列に**問い合わせ、さらに
-「今どの手を打つべきか」を **choice** で選ばせる。
+as a **noul** (a probability between 0 and 1), **all in parallel within a single request**. It then
+has Jev pick "which move should I play right now?" with a **choice**.
 
-そして **ルール違反かどうかの最終判定は Jev に任せず、`public/js/rules.js` が機械的に行う**。
-Jev が「積める」と言った手でも、場に出す前に必ず `isStackable()` を通し、違反なら拒否する。
+And crucially, **the final verdict on whether a move breaks the rules is not left to Jev** —
+`public/js/rules.js` decides it mechanically. Even a move Jev called legal is always run through
+`isStackable()` before it reaches the table, and rejected if it is a violation.
 
-この二重構造によって HUD には次が出る:
+This double structure is what feeds the HUD:
 
-| パネル | 内容 |
+| Panel | Contents |
 |---|---|
-| **JEV LATENCY** | 直近のレイテンシ、スパークライン、p50 / p95 / min / max |
-| **JEV JUDGEMENT** | 候補手ごとの noul バー、Jev が選んだ手、機械的検証との一致 ✓/✗ |
-| **RULE VALIDATOR** | 累積正答率、誤検知 / 見落とし件数、検証器が拒否した回数、トークン消費と概算コスト |
+| **JEV LATENCY** | Latest latency, sparkline, p50 / p95 / min / max |
+| **JEV JUDGEMENT** | noul bar per candidate move, the move Jev picked, agreement with the mechanical check ✓/✗ |
+| **RULE VALIDATOR** | Cumulative accuracy, false positive / false negative counts, how often the validator rejected a move, token usage and estimated cost |
 
 ---
 
-## セットアップ
+## Setup
 
-Node.js 20 以上。**依存パッケージはゼロ**（`npm install` 不要）。
+Node.js 20 or later. **Zero runtime dependencies** — running and testing locally needs no
+`npm install`. (Deploying does, for wrangler alone. See [Deploying](#deploying-cloudflare-workers).)
 
 ```bash
-# 1. API キーを設定（下記「.env について」を参照）
+# 1. Set your API key (see "About .env" below)
 echo 'TYPESAFE_API_KEY=sk-...' > .env
 
-# 2. 起動
+# 2. Start
 npm start
 # → http://localhost:5173
 ```
 
-ブラウザ実行時に Three.js を CDN (`cdn.jsdelivr.net`) から読み込むため、初回はネットワークが必要。
+The browser loads Three.js from a CDN (`cdn.jsdelivr.net`), so the first run needs network access.
 
-### .env について
+### About .env
 
-| 変数 | 既定 | 説明 |
+| Variable | Default | Description |
 |---|---|---|
-| `TYPESAFE_API_KEY` | （なし） | TypeSafe のキー。`console.typesafe.ai/settings/keys` で発行 |
-| `PORT` | `5173` | 開発サーバーのポート |
+| `TYPESAFE_API_KEY` | (none) | Your TypeSafe key. Issue one at `console.typesafe.ai/settings/keys` |
+| `PORT` | `5173` | Port of the dev server |
 
-キーは **サーバープロセスだけが読む**。ブラウザには一切渡らず、
-`GET /api/health` も `hasKey: true/false` しか返さない。
+The key is **read by the server process only**. It never reaches the browser, and
+`GET /api/health` only ever returns `hasKey: true/false`.
 
-**キーを設定しなくても動く**: `TYPESAFE_API_KEY` が空ならサーバーは **モックモード**に入り、
-上流 API を呼ばずにローカルでそれらしい `answers`（80〜250ms の遅延つき、3% ほど誤答を混入）を返す。
-HUD に `MOCK MODE` バッジが出るので本番と取り違えることはない。
+**It works without a key too**: if `TYPESAFE_API_KEY` is empty the server enters **mock mode** and
+returns plausible-looking `answers` locally without calling the upstream API (with an 80–250ms
+delay, and roughly 3% wrong answers mixed in). A `MOCK MODE` badge appears in the HUD, so there is
+no mistaking it for the real thing.
 
 ---
 
-## 遊び方
+## Deploying (Cloudflare Workers)
 
-| 操作 | 内容 |
-|---|---|
-| カードをクリック / `1`–`5` | 手札を選択（置ける台札が光る） |
-| 台札をクリック / `←` `→` | 選んだ札をその台札に置く |
-| `Esc` | 選択解除 |
-| `Space` / **スピード！** ボタン | 両者とも出せないとき、山札から 1 枚ずつ台札にめくる |
+The public build runs on Cloudflare Workers. `public/` is served as static assets, and the Worker
+only handles `/api/*`.
 
-- **ルール**: 台札の 1 つ上か 1 つ下の数字だけ置ける。A と K は隣接（K→A→2）。同じ数字は置けない。
-- **配分**: 1 人 26 枚 = 台札 1 枚 + 場札 5 枚 + 山札 20 枚。
-- 両者とも置けなくなったら盤面が止まり、画面に **「スピード！」** ボタンが出る。
-  押すと各自 **山札から 1 枚ずつ**台札にめくって再開する
-  （**山札が尽きていたら場札から 1 枚出す** — 任天堂公式ルールに準拠）。
-  実際のスピードでも両者が声を合わせてめくるので、宣言してから進む形にした。
-  勝手にめくらないぶん、何が起きたのかを目で追える。
-- 場札と山札を先に使い切った方の勝ち。
-  手詰まりのめくりで最後の 1 枚を出し切った場合もその時点で勝ち。
-  両者が同時に出し切ったときだけ引き分け。
-- **場札は両者とも表向き**（スピードの標準。開始画面のチェックで Jev 側を伏せることもできる）。
+```
+Browser                       Cloudflare Workers              TypeSafe AI
+  three.js (jsdelivr)          static assets = public/
+  session-gate.js  ──①──▶      /api/session  ──verify token──▶ challenges.cloudflare.com
+  jev-client.js    ──②──▶      /api/jev      ──Bearer key────▶ api.typesafe.ai
+                                 ↑ the API key exists only here
+```
 
-### お手付きルール
+① Pass the human check once and receive a signed, short-lived session (2 hours)
+② Every later Jev call is sent with that session attached
 
-置けない札を台札に出そうとすると **お手付き**。その札は台札に乗らず、
-**そのプレイヤーだけ 10 秒間どの札も出せなくなる**（連続すると 15 → 22 → 最大 30 秒まで重くなり、
-1 回成功すると 10 秒に戻る）。開始画面で適用対象を選べる。
+### What this protects
 
-| 設定 | 動き |
-|---|---|
-| **両方に適用**（既定） | あなたと Jev の双方がお手付きの対象 |
-| **Jev のみ** | Jev の誤判定だけがお手付きになる。あなたは違反手を弾かれるだけ |
-| **あなたのみ** | Jev は違反手を出さない（検証器が事前に弾く）。あなただけが罰を受ける |
-| **なし** | 双方とも違反手は場に出ないだけ。罰則なし |
+Putting the API key on the server side only gets you **half way**. Even if the key itself never
+leaks, an `/api/jev` that anyone can hit leaks the *right to use* the key — and the bill grows
+regardless. Hence four layers:
 
-**Jev に適用すると、Jev の判断をそのまま場に出すようになる。**
-つまりルール検証器の役割が「事前フィルタ」から「審判」に変わり、
-Jev の誤判定がそのまま 10 秒のロックアウトとして跳ね返る。
-Jev は 100〜300ms で 1 手を打ってくるので、1 回のお手付きは Jev の数十手ぶんに相当する。
-
-> **出典について**: スピードにお手付きの罰則規定は公式ルールに存在しない。
-> [任天堂](https://www.nintendo.com/jp/others/playing_cards/howtoplay/speed/index.html)、
-> [Wikibooks](https://ja.wikibooks.org/wiki/%E3%83%88%E3%83%A9%E3%83%B3%E3%83%97/%E3%82%B9%E3%83%94%E3%83%BC%E3%83%89)、
-> [Pagat](https://www.pagat.com/patience/spit.html) のいずれにも罰則の記述はなく、
-> Pagat には「出したカードは撤回できない」という確定規定があるのみ。
-> 本アプリのロックアウト方式は、同系のリアルタイムゲーム
-> [Egyptian Ratscrew](https://en.wikipedia.org/wiki/Egyptian_Ratscrew) の
-> 誤スラップ罰則（カードを失う／一時的にスラップ権を失う）を参考にした独自ルール。
-> 枚数を奪う方式（競技かるたの送り札型）は、リアルタイムかつ相手が Jev だと
-> 1 回のミスから不可逆の連鎖敗北になりやすいため採らなかった。
-
-### コンボ
-
-**同じプレイヤーが連続で置いたときだけ**コンボが伸びる。
-相手に 1 手でも割り込まれるとそこで切れて、1 から数え直しになる
-（3 連鎖以上で切られたときは `COMBO BREAK` が出る）。お手付きでも自分のコンボは切れる。
-手詰まりのめくりは仕切り直しなので、そこでも切れる。
-
-コンボはあなたと Jev の両方が持つ。段階が上がるたびに属性エフェクトと煽り文句が出る。
-
-| 連鎖 | 段階 | 演出 |
+| Layer | Mechanism | Effect |
 |---|---|---|
-| 2 | COMBO | 火花、画面の縁がわずかに色づく |
-| 3 | SPLASH | **水** — 飛沫と波紋 |
-| 5 | BURNING | **炎** — 立ち上る火柱、ヒットストップ |
-| 7 | THUNDER | **雷** — 落雷、渦、スローモーション |
-| 10 | OVERDRIVE | 雷 3 本 + 炎 + 水 + 光柱 + 集中線。文字が虹色に流れる |
+| Key isolation | Workers Secrets | Never in the browser, the repository, or the build output |
+| Human check | Turnstile → signed session | Blocks direct calls from scripts |
+| Per-IP limit | `JEV_LIMITER` 150 req/60s | One person cannot eat the whole quota |
+| Global cap | `GLOBAL_LIMITER` 1200 req/60s | Puts a ceiling on the bill even under distributed access |
 
-Jev 側のコンボは赤紫に染まり、煽り文句もこちらを挑発してくる（「もう見えてないでしょ」）。
+When a limit is hit, the request is **downgraded to a mock response** rather than turned away with
+a 429. The game stays playable to the end; only the billing stops.
 
-### ピンチとチャンス
+### Where the secrets live
 
-どちらかの残りが **7 枚** を切ると、画面が心拍のように脈打ちはじめる。
-残りが減るほど鼓動が速くなり（0.75Hz → 2.6Hz）、そのたびに視界が締まる。
-Jev が出し切りそうなら赤（ピンチ）、あなたが近ければ青緑（チャンス）。
+| Name | Kind | Location |
+|---|---|---|
+| `TYPESAFE_API_KEY` | secret | Workers Secrets |
+| `TURNSTILE_SECRET_KEY` | secret | Workers Secrets |
+| `SESSION_SECRET` | secret | Workers Secrets (for signing sessions) |
+| `TURNSTILE_SITE_KEY` | public | `vars` in `wrangler.jsonc` (a value meant to reach the browser) |
 
-カードの絵柄が読めなくなっては本末転倒なので、この演出は
-**画面の縁とライトの色**だけに効かせ、カード自体の発光は最小限にしてある。
+Only the site key is a public value, so it belongs in the config file. Do not confuse it with the
+secret key.
 
-### フィニッシュ
+### Steps
 
-決着の瞬間は「**バチコーン!!**」。
-時間を 260ms 完全停止 → 画面を白く飛ばす → 落雷で引き裂く → カメラが寄る →
-炎・水・渦を 1 秒かけて畳みかけ → 集中線とともに勝敗を出す。
+```bash
+# 0. Dependencies (wrangler only. Runtime dependencies are still 0)
+npm install
 
-その他の演出はヒットストップ、カメラシェイク、カメラパンチ、パーティクル、衝撃波、
-色収差パルス、放射ブラー、スローモーションなど。
+# 1. Create a Turnstile widget
+#    dash.cloudflare.com → Turnstile → Add widget
+#    Mode: Managed. Register your public domain, and note the site key and secret key
 
-### 効果音
+# 2. Write the site key (a public value) into vars.TURNSTILE_SITE_KEY in wrangler.jsonc
 
-`public/audio/*.mp3`。音源は **すべて CC0（パブリックドメイン相当）** の素材を
-`ffmpeg` で切り貼り・重ね合わせして作っている（合計 316KB）。
-右下の「効果音」チェックで切り替えられ、設定は localStorage に残る。
+# 3. Register the secrets (entered interactively; never lands in your shell history or the repo)
+npx wrangler secret put TYPESAFE_API_KEY
+npx wrangler secret put TURNSTILE_SECRET_KEY
+npx wrangler secret put SESSION_SECRET   # paste the output of openssl rand -base64 32
 
-フィニッシュの `finish-win.mp3` / `finish-lose.mp3` は
-風切り → 重い打撃 + スラム + 爆発 → 銅鑼 + 雷 → 締めの鐘、の 7 音を
-時間差で重ねて「バチッ…コーン」を作っている。打撃は再生開始の 0.18 秒後に来る。
+# 4. Deploy
+npm run deploy
+```
 
-素材の入手から生成までは `scripts/build-audio.sh` に全部書いてある（要 `ffmpeg`）:
+Replacing `SESSION_SECRET` invalidates every issued session at once (i.e. everyone passes the gate
+again). Rotate it whenever you suspect a leak.
+
+### Running it locally
+
+```bash
+npm start     # node server.js  — no gate. Faster for working on the game itself
+npm run dev   # wrangler dev    — reproduces the production path (Turnstile gate included)
+```
+
+`npm run dev` reads `.dev.vars`. Copy `.dev.vars.example` to create it. By default it holds
+Turnstile's official test keys (the always-pass combination) and an empty `TYPESAFE_API_KEY`
+(= mock mode), so you can check the gate and rate-limiting behavior **without a real key and
+without spending API quota**.
+
+### Ops notes
+
+- **Adjusting the limits** — edit `ratelimits` in `wrangler.jsonc` and run `npm run deploy`.
+  `period` only accepts `10` or `60`.
+- **Logs** — `npx wrangler tail` follows production requests.
+  The key is only ever touched via Secrets, so it never shows up in the logs.
+- **Users who cannot pass Turnstile** — some extensions or network setups prevent the widget from
+  loading, leaving them stuck at the gate. The gate shows an error in that case.
+  For an internal-only distribution, dropping Turnstile for Cloudflare Access is more reliable.
+- **The last line of defense for billing** — limits on the Workers side can only restrain calls
+  *through this app*. Set usage limits and alerts on the TypeSafe side as well.
+
+---
+
+## How to play
+
+| Input | Action |
+|---|---|
+| Click a card / `1`–`5` | Select a card from your hand (playable piles light up) |
+| Click a pile / `←` `→` | Play the selected card onto that pile |
+| `Esc` | Deselect |
+| `Space` / **SPEED!** button | When neither side can play, flip one card from each stock onto the piles |
+
+- **Rule**: you may only play a card one rank above or below the pile's top card. A and K are
+  adjacent (K→A→2). The same rank cannot be played.
+- **Deal**: 26 cards each = 1 pile card + 5 cards in hand + 20 in the stock.
+- When neither side can play, the board freezes and a **"SPEED!"** button appears on screen.
+  Pressing it flips **one card from each stock** onto the piles and resumes play
+  (**if the stock is empty, a card from the hand is used instead** — per Nintendo's official rules).
+  In real Speed both players call it out and flip together, so this app makes you declare before
+  proceeding. Because nothing flips on its own, you can follow what actually happened.
+- The first player to use up both hand and stock wins.
+  Playing your last card during a deadlock flip also wins on the spot.
+  It is a draw only if both players run out simultaneously.
+- **Both players' hands are face up** (the Speed standard; a checkbox on the start screen can hide
+  Jev's side).
+
+### Foul rule
+
+Trying to play an illegal card onto a pile is a **foul**. The card does not land on the pile, and
+**that player alone cannot play any card for 10 seconds** (repeat fouls get heavier: 15 → 22 → up
+to 30 seconds, resetting to 10 after one successful play). You choose who it applies to on the
+start screen.
+
+| Setting | Behavior |
+|---|---|
+| **Both** (default) | Fouls apply to you and to Jev |
+| **Jev only** | Only Jev's misjudgements become fouls. Your illegal moves are simply rejected |
+| **You only** | Jev never plays an illegal move (the validator filters it in advance). Only you get punished |
+| **None** | Illegal moves from either side just never reach the table. No penalty |
+
+**Applying fouls to Jev means Jev's decisions go straight onto the table.**
+The rule validator's role shifts from "pre-filter" to "referee", and a wrong call from Jev comes
+straight back as a 10-second lockout. Jev plays a move in 100–300ms, so a single foul costs it the
+equivalent of dozens of moves.
+
+> **On sources**: Speed has no official foul penalty.
+> Neither [Nintendo](https://www.nintendo.com/jp/others/playing_cards/howtoplay/speed/index.html),
+> [Wikibooks](https://ja.wikibooks.org/wiki/%E3%83%88%E3%83%A9%E3%83%B3%E3%83%97/%E3%82%B9%E3%83%94%E3%83%BC%E3%83%89),
+> nor [Pagat](https://www.pagat.com/patience/spit.html) describes a penalty; Pagat only fixes the
+> rule that a card once played may not be taken back.
+> The lockout scheme here is an original rule, inspired by the wrong-slap penalties (losing cards /
+> temporarily losing the right to slap) of the similarly real-time
+> [Egyptian Ratscrew](https://en.wikipedia.org/wiki/Egyptian_Ratscrew).
+> A card-stealing penalty (like the "sent card" of competitive karuta) was rejected: in a real-time
+> game against Jev, one mistake would too easily cascade into an irreversible loss.
+
+### Combos
+
+A combo only grows **while the same player keeps playing consecutively**. A single interleaved move
+from the opponent breaks it and the count restarts from 1 (a `COMBO BREAK` shows when a chain of 3
+or more is broken). A foul also breaks your own combo. A deadlock flip is a fresh start, so it
+breaks the combo too.
+
+Both you and Jev have combos. Each new tier brings an elemental effect and a taunt.
+
+| Chain | Tier | Effect |
+|---|---|---|
+| 2 | COMBO | Sparks, the screen edges tint slightly |
+| 3 | SPLASH | **Water** — spray and ripples |
+| 5 | BURNING | **Fire** — a rising pillar of flame, hitstop |
+| 7 | THUNDER | **Lightning** — a strike, a vortex, slow motion |
+| 10 | OVERDRIVE | 3 bolts + fire + water + a pillar of light + speed lines. The text flows in rainbow |
+
+Jev's combos are tinted magenta, and its taunts come at you ("You can't even see it any more, can you").
+
+### Pinch and chance
+
+Once either side drops below **7 cards** remaining, the screen starts pulsing like a heartbeat. The
+fewer cards remain, the faster the beat (0.75Hz → 2.6Hz), and the view tightens with every pulse.
+Red if Jev is about to run out (pinch), teal if you are closer (chance).
+
+Making the card faces unreadable would defeat the purpose, so this effect is applied only to the
+**screen edges and the lighting**, with the cards' own glow kept minimal.
+
+### Finish
+
+The deciding moment is a **"BATSU-KOOON!!"**.
+Time stops dead for 260ms → the screen blows out white → lightning tears it apart → the camera
+pushes in → fire, water and a vortex pile on over one second → the result appears with speed lines.
+
+Other effects include hitstop, camera shake, camera punch, particles, shockwaves, chromatic
+aberration pulses, radial blur and slow motion.
+
+### Sound effects
+
+`public/audio/*.mp3`. Every source sample is **CC0 (public domain equivalent)**, cut and layered
+with `ffmpeg` (316KB in total). The "SFX" checkbox at the bottom right toggles them, and the
+setting persists in localStorage.
+
+The finish sounds `finish-win.mp3` / `finish-lose.mp3` layer 7 sounds with staggered timing —
+whoosh → heavy impact + slam + explosion → gong + thunder → closing bell — to build the
+"batsu… kooon". The impact lands 0.18 seconds after playback starts.
+
+Everything from fetching the samples to generating the files is written out in
+`scripts/build-audio.sh` (requires `ffmpeg`):
 
 ```bash
 bash scripts/build-audio.sh
 ```
 
-| 素材 | 出典 | ライセンス |
+| Samples | Source | License |
 |---|---|---|
-| 打撃 37 種 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | CC0 |
-| 生活音・銅鑼・鐘・紙 100 種 | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | CC0 |
-| 雷・金属・木 100 種 | [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | CC0 |
-| 破壊・落下・打撃 75 種 | [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | CC0 |
-| 水・飛沫 40 種 | [40 CC0 water / splash / slime SFX](https://opengameart.org/content/40-cc0-water-splash-slime-sfx) | CC0 |
-| 爆発・ロケット 50 種 | [50 CC0 Sci-Fi SFX](https://opengameart.org/content/50-cc0-sci-fi-sfx) | CC0 |
+| 37 impacts | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | CC0 |
+| 100 ambient / gong / bell / paper sounds | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | CC0 |
+| 100 thunder / metal / wood sounds | [100 CC0 SFX #2](https://opengameart.org/content/100-cc0-sfx-2) | CC0 |
+| 75 breaking / falling / hit sounds | [75 CC0 breaking / falling / hit sfx](https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx) | CC0 |
+| 40 water / splash sounds | [40 CC0 water / splash / slime SFX](https://opengameart.org/content/40-cc0-water-splash-slime-sfx) | CC0 |
+| 50 explosion / rocket sounds | [50 CC0 Sci-Fi SFX](https://opengameart.org/content/50-cc0-sci-fi-sfx) | CC0 |
 
-CC0 なので帰属表示は不要だが、作者への敬意として出典を残す。
-mp3 が読み込めない環境では、`sfx.js` が WebAudio で合成した代替音に自動で落ちる。
+CC0 requires no attribution, but the sources are kept out of respect for their authors.
+Where the mp3s cannot be loaded, `sfx.js` automatically falls back to sounds synthesized with WebAudio.
 
 ---
 
-## アーキテクチャ
+## Architecture
 
 ```
-server.js                 静的配信 + POST /api/jev プロキシ（キーを隠す層）+ モックモード
+server.js                 Local dev server. Static serving + /api/jev (a thin node:http layer)
+wrangler.jsonc            Production (Cloudflare Workers) config. Assets, rate limits, public vars
+src/
+  worker.js         Production entry point. Handles /api/health, /api/session, /api/jev
+  core/jev-core.js  Runtime-agnostic core. Mock generation, legality computation, upstream calls
+                    (server.js and worker.js use the same thing = their behavior cannot drift)
 public/
+  _headers          Serving headers for static assets (CSP etc. Not itself served)
   index.html / css/style.css
   js/
-    rules.js        スピードのルールエンジン（純粋関数・DOM非依存・Nodeでテスト可能）
-    jev-client.js   /api/jev のクライアント。リトライ、abort、レイテンシ統計
-    ai.js           Jev 駆動の CPU。質問の組み立て → 回答 → 機械的検証 → 手の決定
-    cards-svg.js    トランプ 52 枚 + 裏面の SVG 生成（絵札は path で作り込み）
-    card-texture.js SVG → THREE.Texture（キャッシュ・先読み）
-    render3d.js     Three.js のテーブル、カード、ライティング、レイキャスト
-    vfx.js          ヒットストップ / スロー / 粒子 / 炎・水・雷 / 心拍 / ポストプロセス
-    sfx.js          効果音。mp3 を WebAudio で再生（失敗時は合成音にフォールバック）
-    hud.js          Jev 計測 HUD
-    main.js         ゲームループ・入力・コンボ・緊張・統合
-  audio/            効果音 mp3（CC0 素材を加工したもの）
+    rules.js        Speed rule engine (pure functions, DOM-free, testable under Node)
+    jev-client.js   Client for /api/jev. Retries, abort, latency statistics, session attachment
+    session-gate.js The Turnstile gate. Exchanges a token for a short-lived session
+    ai.js           The Jev-driven CPU. Build questions → answers → mechanical validation → pick a move
+    cards-svg.js    SVG generation for all 52 cards + the back (face cards drawn with paths)
+    card-texture.js SVG → THREE.Texture (caching, prefetch)
+    render3d.js     Three.js table, cards, lighting and raycasting
+    vfx.js          Hitstop / slow motion / particles / fire, water, lightning / heartbeat / post-processing
+    sfx.js          Sound effects. Plays mp3s via WebAudio (falls back to synthesis on failure)
+    hud.js          The Jev measurement HUD
+    main.js         Game loop, input, combos, tension, integration
+  audio/            Sound effect mp3s (built from CC0 samples)
 scripts/
-  build-audio.sh    public/audio/*.mp3 を素材から組み立て直す（要 ffmpeg）
+  build-audio.sh    Rebuilds public/audio/*.mp3 from the source samples (requires ffmpeg)
 test/
-  rules.test.mjs        ルールエンジン単体（網羅 + 200 ゲームのファズ）
-  integration.test.mjs  サーバー(モック) + Jev クライアント + CPU の通し
-docs/CONTRACTS.md       モジュール間の公開 API 契約
+  rules.test.mjs        Rule engine unit tests (exhaustive + a 200-game fuzz)
+  integration.test.mjs  End-to-end: server (mock) + Jev client + CPU
+  worker.test.mjs       Production Worker: auth, rate limiting, and that the key never leaks
+docs/CONTRACTS.md       The public API contract between modules
 ```
 
-モジュール間の契約は `docs/CONTRACTS.md` が唯一の正。変更するときはまずそこを直す。
+`docs/CONTRACTS.md` is the single source of truth for the contracts between modules. When changing
+them, change that file first.
 
-### Jev に投げるリクエストの形
+### Shape of the request sent to Jev
 
 ```jsonc
 POST /api/jev
@@ -225,7 +339,7 @@ POST /api/jev
   "questions": {
     "m0": { "type": "noul",   "instructions": "... can the 8 of clubs be legally stacked onto pile 0 ...",
             "criteria": { "true": "...", "false": "..." } },
-    // m1..m9 も同様
+    // m1..m9 likewise
     "best":     { "type": "choice", "instructions": "Pick the single best move ...", "criteria": { "m0": "...", "pass": "..." } },
     "pressure": { "type": "score",  "instructions": "How tight is this position ...",
                   "criteria": ["Many good options", "A few options", "Only one option", "No legal move at all"] }
@@ -233,47 +347,48 @@ POST /api/jev
 }
 ```
 
-**`state` には答えに相当する情報（合法フラグ等）を一切含めない。**
-`rules.test.mjs` がこれをテストで強制している。
+**`state` contains nothing that amounts to the answer (no legality flags or the like).**
+`rules.test.mjs` enforces this with a test.
 
-### チューニング
+### Tuning
 
-`public/js/ai.js` の `TUNING` に集約:
+Collected in `TUNING` in `public/js/ai.js`:
 
-| 定数 | 既定 | 意味 |
+| Constant | Default | Meaning |
 |---|---|---|
-| `NOUL_THRESHOLD` | `0.5` | これ以上なら Jev は「積める」と判断したとみなす |
-| `CHOICE_CONFIDENCE_FLOOR` | `0.35` | choice をこの確信度未満なら noul 最大値にフォールバック |
-| `MAX_CANDIDATES` | `10` | 1 リクエストで判定する候補手の上限 |
-| `MIN_THINK_INTERVAL_MS` | `40` | 思考リクエストの最小間隔 |
+| `NOUL_THRESHOLD` | `0.5` | At or above this, Jev is taken to have judged the move legal |
+| `CHOICE_CONFIDENCE_FLOOR` | `0.35` | Below this confidence, fall back from choice to the highest noul |
+| `MAX_CANDIDATES` | `10` | Max candidate moves judged in one request |
+| `MIN_THINK_INTERVAL_MS` | `40` | Minimum interval between think requests |
 
-`public/js/main.js` の `CONFIG`:
+`CONFIG` in `public/js/main.js`:
 
-| 定数 | 既定 | 意味 |
+| Constant | Default | Meaning |
 |---|---|---|
-| `FOUL_LOCKOUT_MS` | `10000` | お手付きの基本ペナルティ(ms) |
-| `FOUL_LOCKOUT_STEP` | `1.5` | 連続お手付きの倍率 |
-| `FOUL_LOCKOUT_MAX_MS` | `30000` | ペナルティの上限(ms) |
-| `CPU_EXTRA_DELAY_MS` | `0` | Jev の思考後に挟む追加ディレイ(ms) |
+| `FOUL_LOCKOUT_MS` | `10000` | Base foul penalty (ms) |
+| `FOUL_LOCKOUT_STEP` | `1.5` | Multiplier for consecutive fouls |
+| `FOUL_LOCKOUT_MAX_MS` | `30000` | Penalty ceiling (ms) |
+| `CPU_EXTRA_DELAY_MS` | `0` | Extra delay inserted after Jev has thought (ms) |
 
-CPU が強すぎる場合は `public/js/main.js` の `CONFIG.CPU_EXTRA_DELAY_MS` に
-思考ディレイ（ms）を入れると難易度を下げられる。既定は `0`（Jev の素の速度）。
+If the CPU is too strong, put a thinking delay (in ms) into `CONFIG.CPU_EXTRA_DELAY_MS` in
+`public/js/main.js` to lower the difficulty. The default is `0` (Jev's raw speed).
 
-### API 呼び出しの節約
+### Saving API calls
 
-ゲームループは毎フレーム回るが、**Jev は局面が変わったときにしか呼ばれない**。
-`ai.js` が「台札 2 枚 + CPU の手札」のシグネチャを保持し、前回問い合わせたときと
-同じならリクエストを飛ばさずに `{ skipped: true }` を返す。
-Jev が「出せる手なし（pass）」と答えた局面をポーリングし続けて課金する、という事故を防いでいる。
-（リクエストが失敗した局面はシグネチャを破棄するので、次のフレームで再試行される）
+The game loop runs every frame, but **Jev is only called when the position changes**.
+`ai.js` keeps a signature of "the 2 pile tops + the CPU's hand" and, if it matches the one from the
+previous query, returns `{ skipped: true }` without sending a request.
+This prevents the accident of polling — and paying for — a position where Jev already answered
+"no legal move (pass)".
+(A position whose request failed has its signature discarded, so it is retried on the next frame.)
 
-### デバッグ
+### Debugging
 
-起動後、ブラウザのコンソールから `window.JEVSPEED` でゲーム内部に触れる。
+Once running, `window.JEVSPEED` in the browser console exposes the game internals.
 
 ```js
-JEVSPEED.state                       // 現在の GameState
-JEVSPEED.ai.summary()                // Jev の累計成績
+JEVSPEED.state                       // The current GameState
+JEVSPEED.ai.summary()                // Jev's cumulative record
 JEVSPEED.vfx.burst(JEVSPEED.table.pilePosition(0), 0x5eead4, 240)
 JEVSPEED.vfx.slowMotion(2000, 0.1)
 JEVSPEED.newGame()
@@ -281,21 +396,28 @@ JEVSPEED.newGame()
 
 ---
 
-## テスト
+## Tests
 
 ```bash
 npm test    # node --test "test/*.test.mjs"
 ```
 
-- `rules.test.mjs` — 13×13 の全ランクペア、A↔K 循環、同値拒否、不変条件（常に 52 枚）、
-  非合法手で state が変化しないこと、200 ゲームのファズ、Jev への state に答えが漏れないこと
-- `integration.test.mjs` — サーバーを**必ずモックモードで**起動し（`.env` に本物のキーがあっても
-  子プロセスの環境変数で上書きされる）、Jev-CPU が 1 ゲーム完走すること、
-  Jev の提案にルール違反が 1 件も適用されないことを検証
+- `rules.test.mjs` — all 13×13 rank pairs, the A↔K wrap, same-rank rejection, invariants (always 52
+  cards), that illegal moves leave the state unchanged, a 200-game fuzz, and that no answer leaks
+  into the state sent to Jev
+- `integration.test.mjs` — starts the server **always in mock mode** (a real key in `.env` is
+  overridden by the child process's environment), and verifies that the Jev CPU plays one game to
+  completion and that not a single rule-violating move from Jev's suggestions is ever applied
+- `worker.test.mjs` — the production Worker. `src/worker.js` only uses web-standard APIs, so it is
+  imported directly under Node without starting wrangler. Covers: `/api/jev` rejecting a missing,
+  forged, tampered or expired session; `/api/session` issuing nothing unless Turnstile passes;
+  rate limits downgrading to a mock instead of returning 429 (and never reaching upstream); and
+  that no response — including upstream errors — ever contains the API key
 
 ---
 
-## コスト
+## Cost
 
-Jev は入力 $0.042 / 1M トークン、出力は無料。1 手あたりの入力はおよそ 1〜2k トークンなので、
-1 ゲーム（数十手）でも **0.01 セント未満**。HUD 右下に実測の累計を表示している。
+Jev costs $0.042 / 1M input tokens, with output free. One move is roughly 1–2k input tokens, so
+even a full game (dozens of moves) stays **under 0.01 cents**. The measured running total is shown
+at the bottom right of the HUD.

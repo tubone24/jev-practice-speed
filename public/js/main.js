@@ -8,6 +8,7 @@ import { createHUD } from './hud.js';
 import { createSFX } from './sfx.js';
 import { createJevPlayer } from './ai.js';
 import { jevHealth } from './jev-client.js';
+import { ensureSession } from './session-gate.js';
 
 const CONFIG = {
   handSize: 5,
@@ -90,6 +91,9 @@ const dom = {
   finishSub: document.getElementById('finish-sub'),
   stage: document.getElementById('stage'),
   loading: document.getElementById('loading'),
+  gate: document.getElementById('gate'),
+  gateWidget: document.getElementById('gate-widget'),
+  gateError: document.getElementById('gate-error'),
 };
 
 let table = null;
@@ -795,13 +799,18 @@ async function boot() {
   hud.setFoulRule(foulRule);
   hud.setFouls(foulCount);
 
-  let health = { ok: false, mock: true, hasKey: false };
+  let health = { ok: false, mock: true, hasKey: false, requiresSession: false, turnstileSiteKey: '' };
   try { health = await jevHealth(); } catch { /* サーバー未起動でもUIは出す */ }
 
   state = rules.createGame({ handSize: CONFIG.handSize });
   sync();
 
   dom.loading.hidden = true;
+
+  // 本番 (Turnstile 設定済み) では人間確認を通してからでないと /api/jev が 401 になる。
+  // ローカルや未設定環境では素通しするので、開発の手触りは変わらない。
+  await ensureSession(health, { gate: dom.gate, widget: dom.gateWidget, error: dom.gateError });
+
   showOverlay(
     'JEV SPEED',
     'トランプの<strong>スピード</strong>で Jev と対戦します。<br>' +

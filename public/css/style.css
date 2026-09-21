@@ -837,3 +837,48 @@ kbd {
   .hud-panel { flex: 1; min-width: 0; }
   .lat-big { font-size: 34px; }
 }
+
+/* --------------------------------------------------------------- Turnstile ゲート */
+
+#gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(8, 12, 24, 0.9), rgba(2, 3, 8, 0.98));
+  backdrop-filter: blur(6px);
+  z-index: 30; /* #overlay(20) より手前 — 先に通すゲートなので */
+  animation: fade-in 0.3s ease-out;
+}
+
+#gate[hidden] { display: none; }
+
+.gate-card { max-width: 420px; padding: 34px 38px 28px; }
+
+.gate-title {
+  margin: 0 0 14px;
+  font: 900 34px/1 var(--mono);
+  letter-spacing: 0.1em;
+  background: linear-gradient(120deg, var(--teal), #a78bfa, var(--pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gate-lead { margin: 0 0 20px; font-size: 13px; color: var(--ink); }
+
+/* Turnstile のウィジェットは iframe なので中央寄せだけ面倒を見る */
+#gate-widget { display: flex; justify-content: center; min-height: 65px; }
+
+.gate-note { margin: 18px 0 0; font-size: 10px; line-height: 1.7; color: #64748b; }
+
+.gate-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--red);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 10px;
+}

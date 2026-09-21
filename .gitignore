@@ -12,3 +12,10 @@ node_modules/
 
 # 効果音の元素材（scripts/build-audio.sh が展開する作業用。成果物の public/audio だけをコミットする）
 .sfx-src/
+
+# wrangler dev のローカル変数
+.dev.vars
+!.dev.vars.example
+
+# wrangler のローカルビルド/状態キャッシュ
+.wrangler/
