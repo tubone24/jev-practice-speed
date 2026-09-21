@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "jev-speed",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-20",
+
+  // public/ をそのまま静的配信する。アセットが先に当たり、外れたときだけ Worker が動く。
+  // つまり Worker は実質 /api/* 専用。
+  "assets": {
+    "directory": "./public/",
+    "binding": "ASSETS"
+  },
+
+  // ここに書いてよいのは公開前提の値だけ。
+  // TYPESAFE_API_KEY / TURNSTILE_SECRET_KEY / SESSION_SECRET は
+  // `wrangler secret put` で登録する (このファイルにもリポジトリにも残さない)。
+  "vars": {
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAE-cmjq1Cva4ddTM"
+  },
+
+  // クォータ泥棒対策。period は 10 か 60 のみ。
+  "ratelimits": [
+    // 1 IP あたりの Jev 呼び出し。対戦 1 回で数十回叩くので余裕をもたせる。
+    { "name": "JEV_LIMITER", "namespace_id": "1001", "simple": { "limit": 150, "period": 60 } },
+    // セッション発行。Turnstile 突破の総当たりを抑える。
+    { "name": "SESSION_LIMITER", "namespace_id": "1002", "simple": { "limit": 12, "period": 60 } },
+    // 全体の上限。分散攻撃でも請求の天井をここで決める。
+    { "name": "GLOBAL_LIMITER", "namespace_id": "1003", "simple": { "limit": 1200, "period": 60 } }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

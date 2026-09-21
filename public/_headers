@@ -1,0 +1,13 @@
+# Cloudflare Workers の静的アセットが読む設定ファイル (配信対象にはならない)。
+# three.js は jsdelivr、Turnstile は challenges.cloudflare.com から読むので、そこだけ許可する。
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# カードや効果音は内容が変わらないので長めにキャッシュしてよい。
+/audio/*
+  Cache-Control: public, max-age=604800

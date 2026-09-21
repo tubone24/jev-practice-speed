@@ -9,7 +9,13 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test \"test/*.test.mjs\""
+    "test": "node --test \"test/*.test.mjs\"",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
 }

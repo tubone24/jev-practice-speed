@@ -1,0 +1,7 @@
+# wrangler dev 専用のローカル値。本番の秘密情報は絶対に書かない (このファイルは .gitignore 済み)。
+# Turnstile の公式テストキー: 常に成功する組み合わせ。
+TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
+SESSION_SECRET="任意のランダム文字列"
+# 空ならモックモード。本物の Jev を試すときだけ各自のキーを入れる。
+TYPESAFE_API_KEY=""
